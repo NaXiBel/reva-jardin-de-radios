@@ -1,0 +1,13 @@
+{{ radio_name }} 
+
+<audio #radio_player controls autoplay>
+  <source src="{{ radio_src }}" type="audio/mpeg">
+</audio>
+
+<div id="mapView" #mapViewNode></div>
+
+<ul id="radio_list">
+    <li *ngFor="let channel of radio_channels" (click)="changeChannel(channel)">
+        {{ channel.name }}
+    </li>
+</ul>
