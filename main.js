@@ -11,6 +11,12 @@ const MARKER = {
     }
 };
 
+const NUMBER_OF_CHANNELS_PER_PAGE = 4;
+var currentChannelList = {
+    place : null,
+    channels : [],
+    current_page : 1
+}
 
 $( document ).ready(function() {
 
@@ -26,9 +32,9 @@ $( document ).ready(function() {
             ground: "world-topobathymetry"
         });
         var view = new SceneView({
-            container: "viewDiv",     // Reference to the scene div created in step 5
-            map: map,                 // Reference to the map object created before the scene
-            scale: 50000000,          // Sets the initial scale to 1:50,000,000
+            container: "viewDiv",    
+            map: map,                 
+            scale: 50000000,          
             center: [-101.17, 21.78],
             environment: {
                 background: {
@@ -74,12 +80,12 @@ $( document ).ready(function() {
         var channelsByPlace = [];
 
         $.ajax({
-            url : "http://rstglb.stephanenativel.fr/api/all",
+            url : "http://data.radio.garden/live.json?v=3&b=55e8ce17b1c9c2d39af7-11-29&noOutdatedSC=1",
             method : "GET"
         })
         .done(function(res) {
-            var places = res.data[0].places;
-            var channels = res.data[0].channels;
+            var places = res.places;
+            var channels = res.channels;
 
             var channelIndex = 0;
 
@@ -128,15 +134,13 @@ $( document ).ready(function() {
         view.on("click", function(event) {
             view.hitTest(event).then(function(response) {
                 var hitPoint = response.results[0].graphic;
-                console.log(hitPoint.data.place);
-                var content = '<div id="hud-place-title">'+hitPoint.data.place.name+'</div>'+'<div id="hud-channel">';
+                currentChannelList = {
+                    place : hitPoint.data.place,
+                    channels : hitPoint.data.channels,
+                    current_page : 1
+                };
 
-                hitPoint.data.channels.forEach(channel => {
-                    content += '<button class="channel-button" id="'+hitPoint.data.place.id[0]+'/'+hitPoint.data.place.id+'/'+channel.id+'">'+channel.name+'</button>';
-                });
-                
-                content += '</div>';
-                $('#hud-bottom').html(content);
+                displayChannelPagination(currentChannelList, 1);
 
 
             }); 
@@ -175,7 +179,18 @@ $( document ).ready(function() {
             }, 500);
             
 
+        });
 
+        $('#hud-bottom').on('click', '.nav-pages-next', function() {
+            ++currentChannelList.current_page;
+            displayChannelPagination(currentChannelList, currentChannelList.current_page);
+            
+        });
+
+        $('#hud-bottom').on('click', '.nav-pages-prev', function() {
+            --currentChannelList.current_page;
+            displayChannelPagination(currentChannelList, currentChannelList.current_page);
+            
         });
 
     
@@ -183,3 +198,37 @@ $( document ).ready(function() {
 
 
 });
+
+/**
+ * 
+ * @param {*} channelList 
+ * @param {*} pageNumber 
+ */
+function displayChannelPagination(channelList, pageNumber) {
+    console.log(channelList);
+    var content = '<div id="hud-place-title">'+channelList.place.name+'</div>'+'<div id="hud-channel">';
+
+
+    for(var i = (pageNumber - 1) * NUMBER_OF_CHANNELS_PER_PAGE ; i < (pageNumber - 1) * NUMBER_OF_CHANNELS_PER_PAGE + NUMBER_OF_CHANNELS_PER_PAGE  && i < channelList.channels.length; ++i ) {
+        console.log(i);
+        content += '<button class="channel-button" id="'+channelList.place.id[0]+'/'+channelList.place.id+'/'+channelList.channels[i].id+'">'+channelList.channels[i].name+'</button><br />';
+    }
+    
+    content += '<div id="nav-pagination">';
+    if(pageNumber > 1) {
+        content += '<a href="#" class="nav-pages-prev" id="'+(pageNumber-1)+'"> < </a>';
+    }
+    
+    content += channelList.current_page;
+
+    var totalOfPages = (channelList.channels.length / NUMBER_OF_CHANNELS_PER_PAGE) + 1;
+
+    if(pageNumber < totalOfPages - 1) {
+        content += ('<a href="#" class="nav-pages-next" id="'+(pageNumber + 1)+'"> > </a>') ;
+    }
+
+    content += '</div></div>'
+    
+    console.log(content);
+    $('#hud-bottom').html(content);
+}
