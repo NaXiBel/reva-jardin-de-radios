@@ -8,6 +8,11 @@ const fs = require('fs');
 // used to parse the request in param to get the param
 const bodyParser = require('body-parser');
 
+const http = require('http');
+
+const vlc = require('fluent-vlc');
+const { exec } = require('child_process');
+
 import { DataRadioLayer } from './repository/dataRadioLayer'
 import { Places } from './model/places';
 import { Radio } from './model/radio';
@@ -15,7 +20,7 @@ import { DataPlacesLayer } from './repository/dataPlacesLayer';
 
 export class Server {
     app = express();
-    port : Number = 8080;
+    port : Number = 8100;
 
     dataPlacesLayer = new DataPlacesLayer();
     dataRadioLayer = new DataRadioLayer();
@@ -93,36 +98,126 @@ export class Server {
                 // Get all data
                 let indiceRadio = 0;
                 let placesArr = new Array<Places>();
-
+                let instance = this;
+                let removedRadio = 0;
                 dataJSON.places.forEach((placesJSON : any) => {
                     let places = new Places(placesJSON);
                     
-                    for(let chan = indiceRadio; chan < (indiceRadio + places.getChannelCount()); ++chan) {
-                        let stream = "http://listen.radio.garden/streams/"+ places.id[0] +"/" + places.id + "/" + dataJSON.channels[chan].id + ".php"
-                        let radio = new Radio(dataJSON.channels[chan]);
-                        radio.setStream(stream);
-                        radio.setPlacesId(places.id);
-                        places.addChannel(radio);
+                    for(let chan = indiceRadio; chan < (indiceRadio + places.getChannelCount() + removedRadio); ++chan) {
+                        this.getRealStream(places, dataJSON.channels[chan].id, function(stream) {
+                            let radio = new Radio(dataJSON.channels[chan]);
+                            if(stream !== "") {
+                                radio.setStream(stream);
+                                radio.setPlacesId(places.id);
+                                places.addChannel(radio);
+    
+                                // TODO: If no channel => Remove radio => Decrease channel count => If channel count = 0 => Remove places                       
+    
+                                if(places.getChannelCount() > 0 && places.getChannelCount() == places.getChannels().length) {
+                                    placesArr.push(places);
+                                }
+    
+                                if(placesArr.length == dataJSON.places.length - removedRadio) {
+                                    // Save all data
+                                    instance.dataPlacesLayer.insertMultiple(placesArr, () => {
+                                        res.send({
+                                            success: true
+                                        });        
+                                    });
+                                }
+                            }
+                            else {
+                                places.setChannelCount(places.getChannelCount() - 1);
+                                removedRadio++;
+                            }
+                        });
                     }
                     
                     indiceRadio += places.getChannelCount();
-
-                    placesArr.push(places);
-                });
-                
-                // Save all data
-                this.dataPlacesLayer.insertMultiple(placesArr, () => {
-                    res.send({
-                        success: true
-                    });        
                 });
             }
+        });
+
+        this.app.post('/stream', (req: any, res:any) => {
+            exec('killall -9 vlc', (stdout , stderr) => {
+                let command = 'vlc '+ req.body.stream_url + ' --sout \'#transcode{vcodec=none,acodec=mp3,ab=128,channels=2,samplerate=44100,scodec=none}:http{dst=:8080/radio.mp3}\' --sout-all --sout-keep';
+            
+                exec(command, (out, err) => {
+
+                });
+
+                setTimeout(() => {
+                    res.send({
+                        success: true
+                    });
+                }, 1000);
+            });
+
+            // const path = '/home/guillaume/Downloads/tweekacore-da-tweekaz-circle-of-life.mp3'
+            // const stat = fs.statSync(path)
+            // const fileSize = stat.size
+            // const range = req.headers.range
+          
+            // if (range) {
+            //   const parts = range.replace(/bytes=/, "").split("-")
+            //   const start = parseInt(parts[0], 10)
+            //   const end = parts[1] 
+            //     ? parseInt(parts[1], 10)
+            //     : fileSize-1
+            //   const chunksize = (end-start)+1
+            //   const file = fs.createReadStream(path, {start, end})
+            //   const head = {
+            //     'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+            //     'Accept-Ranges': 'bytes',
+            //     'Content-Length': chunksize,
+            //     'Content-Type': 'audio/mpeg',
+            //   }
+          
+            //   res.writeHead(206, head);
+            //   file.pipe(res);
+            // } else {
+            //   const head = {
+            //     'Content-Length': fileSize,
+            //     'Content-Type': 'audio/mpeg',
+            //   }
+            //   res.writeHead(200, head)
+            //   fs.createReadStream(path).pipe(res)
+            // }
+
         });
     }
 
     public start() {
         this.app.listen(this.port);
         console.log('[SERVER] Starting on port ' + this.port);
+    }
+
+    private getRealStream(place: Places, channel_id: String, callback: Function) {
+        let options = {
+            host: "listen.radio.garden",
+            port: 80,
+            path: "/streams/"+ place.id[0] +"/" + place.id + "/" + channel_id + ".php",
+            method: 'GET'
+        };
+
+        let req = http.request(options, function(res) {
+            if(res.statusCode == 301) {
+                return callback(res.headers.location);
+            }
+            else if(res.statusCode === 200) {
+                return callback("");
+            }
+            else {
+                console.log(res.statusCode + " " + options.host + options.path);
+                return callback("");
+            }
+        });
+
+        req.on('error', function(e) {
+            console.log('problem with request: ' + e.message);
+        });
+
+        req.end();
     }
 }
 

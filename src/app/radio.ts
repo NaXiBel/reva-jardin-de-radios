@@ -4,6 +4,7 @@ export class Radio {
     ranking: Number;
     stream: String;
     place_id: String;
+    place_name: String;
 
     constructor(data?: any) {
         if(data != undefined) {

@@ -23,6 +23,10 @@ export interface ResponseChannels {
     channels: Radio[]
 }
 
+export interface GiveStream {
+    stream: String;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -47,13 +51,17 @@ export class ChannelService {
     }
 
     public getData() : Observable<ResponsePlace> {
-        return this.http.post<ResponsePlace>('http://localhost:8080/getData', '', httpOptions)
+        return this.http.post<ResponsePlace>('http://localhost:8100/getData', '', httpOptions)
         .pipe();
     }
 
     public getChannels(place_id: String) : Observable<ResponseChannels> {
-        let url = 'http://localhost:8080/' + place_id + '/channels';
+        let url = 'http://localhost:8100/' + place_id + '/channels';
         return this.http.post<ResponseChannels>(url, '', httpOptions)
         .pipe();
+    }
+
+    public startStream(stream_url: String) : Observable<GiveStream>{
+        return this.http.post<GiveStream>('http://localhost:8100/stream/', '{"stream_url": "' + stream_url + '"}', httpOptions).pipe();
     }
 }

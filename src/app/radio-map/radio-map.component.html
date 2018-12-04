@@ -1,7 +1,25 @@
-{{ radio_name }} 
+<div class="player">
+  <div #info id="info" class="info">
+    <span class="artist">{{ radio_name }}</span>
+    <span class="name">{{ radio_place }}</span>
+      <!-- <div class="progress-bar"> -->
+      <!-- <div class="bar"></div> -->
+    <!-- </div> -->
+  </div>
+  <div #control_panel id="control-panel" class="control-panel">
+    <div class="album-art"></div>
+    <div class="controls">
+      <div class="prev" (click)="previous()"></div>
+      <div id="play" class="play" (click)="play()"></div>
+      <div class="next" (click)="next()"></div>
+    </div>
+  </div>
+</div>
 
-<audio #radio_player controls autoplay>
-  <source src="{{ radio_src }}" type="audio/mpeg">
+<audio #radio_player autoplay>
+  <!-- <source src="{{ radio_src }}" type="audio/mpeg"> -->
+    <source src="http://localhost:8080/radio.mp3" type="audio/mpeg">
+
 </audio>
 
 <div id="mapView" #mapViewNode></div>

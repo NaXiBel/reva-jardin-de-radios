@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild, ElementRef, Input, Output, EventEmitter, Renderer2 } from '@angular/core';
+import { Component, OnInit, ViewChild, ElementRef, Input, Output, EventEmitter } from '@angular/core';
 import { loadModules } from 'esri-loader';
 
 import { ChannelService } from './../channel.service'
@@ -13,25 +13,23 @@ import { Radio } from './../radio';
 })
 
 export class RadioMapComponent implements OnInit {
-    radio_name : String = "Qlimax";
-    radio_src : String = "https://19983.live.streamtheworld.com/Q_DANCE.mp3"
-    
+    radio_name : String = "Sélectionnez une radio avant";
+    radio_src : String = ""
+    radio_place : String;
+
     radio_channels = new Array<Radio>();
 
     placesStorage = new Array<Place>();
 
-    constructor(private channelService: ChannelService, private renderer: Renderer2, private elementRef:ElementRef) { }
+    constructor(private channelService: ChannelService) { }
 
     @Output() mapLoaded = new EventEmitter<boolean>();
     @ViewChild('mapViewNode') private mapViewEl: ElementRef;
 
     @ViewChild("radio_player") audio;
+    @ViewChild("info") infoBarObj;
+    @ViewChild("control_panel") controlPanelObj;
 
-    /**
-     * @private _zoom sets map zoom
-     * @private _center sets map center
-     * @private _basemap sets type of map
-     */
     private _zoom: number = 10;
     private _center: Array<number> = [0.1278, 51.5074];
     private _basemap: string = 'satellite';
@@ -65,7 +63,7 @@ export class RadioMapComponent implements OnInit {
 
     async initializeMap() {
         try {
-            const [EsriMap, EsriMapView, EsriGraphic, EsriPoint, EsriSimpleMarkerSymbol, EsriFeatureLayer] = await loadModules([
+            const [EsriMap, EsriMapView, EsriGraphic, EsriPoint, EsriSimpleMarkerSymbol] = await loadModules([
                 'esri/Map',
                 'esri/views/SceneView',
                 "esri/Graphic",
@@ -134,8 +132,10 @@ export class RadioMapComponent implements OnInit {
                             var hitpoint = response.results[0].graphic;
 
                             instance.channelService.getChannels(hitpoint.data.place.id).subscribe(radios => {
+                                instance.radio_channels = [];
                                 radios.channels.forEach((channel:any) => {
                                     let radio = new Radio(channel);
+                                    radio.place_name = hitpoint.data.place.name;
                                     instance.radio_channels.push(radio);
                                 });
                             });
@@ -156,9 +156,56 @@ export class RadioMapComponent implements OnInit {
     public changeChannel(radio: Radio) {
         this.radio_name = radio.getName();
         this.radio_src = radio.getStream();
-        
-        console.log(this.audio);
-        this.audio.nativeElement.load();
-        this.audio.nativeElement.play();
+        this.radio_place = radio.place_name;
+        this.channelService.startStream(radio.getStream()).subscribe(() => {
+            console.log("Start playing audio");
+            this.play();
+        });
+    }
+
+    public play() {
+        this.audio.nativeElement.pause();
+
+        if(!this.controlPanelObj.nativeElement.classList.contains('active')) {
+            this.controlPanelObj.nativeElement.classList.add('active');
+            this.audio.nativeElement.load();
+            this.audio.nativeElement.play();
+        }
+        else {
+            this.controlPanelObj.nativeElement.classList.remove('active');
+        }
+
+        if(!this.infoBarObj.nativeElement.classList.contains('active')) {
+            this.infoBarObj.nativeElement.classList.add('active');
+        }
+        else {
+            this.infoBarObj.nativeElement.classList.remove('active');
+        }
+    }
+
+    public next() {
+        for(let i = 0; i < this.radio_channels.length; ++i) {
+            let radio = this.radio_channels[i];
+            if(radio.getName() == this.radio_name) {
+                i = (i + 1)%this.radio_channels.length;
+                radio = this.radio_channels[i];
+                this.changeChannel(radio);
+                this.play();
+                break;
+            }
+        }
+    }
+
+    public previous() {
+        for(let i = 0; i < this.radio_channels.length; ++i) {
+            let radio = this.radio_channels[i];
+            if(radio.getName() == this.radio_name) {
+                i = (i - 1 + this.radio_channels.length)%this.radio_channels.length;
+                radio = this.radio_channels[i];
+                this.changeChannel(radio);
+                this.play();
+                break;
+            }
+        }
     }
 }
